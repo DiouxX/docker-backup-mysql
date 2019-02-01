@@ -1,0 +1,162 @@
+#!/bin/bash
+
+#Script to backup Docker MySQL/Mariadb database
+
+#Couleur affichage
+VERT="\\033[1;32m" 
+NORMAL="\\033[0;39m" 
+ROUGE="\\033[1;31m" 
+ROSE="\\033[1;35m" 
+BLEU="\\033[1;34m" 
+BLANC="\\033[0;02m" 
+BLANCLAIR="\\033[1;08m" 
+JAUNE="\\033[1;33m" 
+CYAN="\\033[1;36m"
+
+#Global Variable
+CONTAINER_DATABASE_NAME=""
+DATABASE=""
+FOLDER_DUMP=""
+DUMP_NAME_FILE=""
+REMOTE_SERVER=""
+PORTSSH=22
+VERBOSE=false
+KEEP=false
+DATE=`date +"%Y"-"%m"-"%d"-"%H%M%S"`
+
+function usage(){
+  echo -e "Script usage :"
+  echo -e "\tDisplay help"
+  echo -e "-c\tMysql/Mariadb container name"
+  echo -e "-d\tDatabase name"
+  echo -e "-n\tBackup name (By default : Database name + YYYY-MM-DD-HMS)"
+  echo -e "-f\tLocal backup folder"
+  echo -e "-t\tRemote Backup Path"
+  echo -e "-k\tKeep local backup if enable transfert option"
+  echo -e "-P\tSSH Remote Port (default : 22)"
+  echo -e "-v\tVerbose mode"
+  echo -e "\nExemple"
+  echo -e "\n#If you want a remote DUMP"
+  echo -e "docker_backup_mysql -c mysql-docker -d glpidb -n glpi-backup -t root@192.168.1.1:/mnt/backup_server/backup_mysql/glpi/"
+  echo -e "\n#If you want a local DUMP"
+  echo -e "docker_backup_mysql -c mysql-docker -d glpidb -n glpi-backup -f /opt/backup/glpi/"
+  echo -e "\nIMPORTANT\nDon't forget to copy your public SSH key on remote server ( To automate backup task )"
+  echo -e "[user@ordi ~]$ ssh-copy-id -i ~/.ssh/id_rsa.pub user@remote-server"
+exit 0
+ 
+}
+
+#Fonction pour afficher le debug
+#$1 = 0 ou 1 ( 1 pour afficher l'heure dans le message de debug)
+#$2 = Message à afficher
+function verbose(){
+	if $VERBOSE;
+	then
+		if [ $1 -eq 1 ]
+		then
+			#Affichage de debug
+        		horodate=`date +"\n%d"/"%m"/"%Y"-"%H":"%M":"%S -- "`
+        		echo -e "$horodate$2"
+        	else
+			echo -e "$2"
+		fi;
+	fi;
+}
+
+#Affichage de l'utilisation du script si pas de parametres
+if [ $# -eq 0 ]
+then
+  usage
+fi
+
+#Get Parameter
+while getopts c:d:kvn:f:t:P: option
+do
+  case $option in
+    c)
+      CONTAINER_DATABASE_NAME=$OPTARG
+      ;;
+    d)
+      DATABASE=$OPTARG
+      ;;
+    n)
+      DUMP_NAME_FILE=$OPTARG
+      ;;
+    f)
+      FOLDER_DUMP=$OPTARG
+      ;;
+    t)
+      REMOTE_SERVER=$OPTARG
+      ;;
+    P)
+      PORTSSH=$OPTARG
+      ;;
+    v)
+      VERBOSE=true
+      ;;
+    k)
+      KEEP=true
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+#Set DUMP Database Name
+if [ -z $NAME ]
+then
+  DUMP_NAME_FILE=${DATABASE}-${DATE}.sql
+else
+  DUMP_NAME_FILE=${NAME}-${DATE}.sql
+fi
+
+#Display parameter and SQL request
+if [ -z $REMOTE_SERVER ]
+then
+        #If not REMOTE SERVER and not DUMP folder => DUMP Folder = /tmp
+        if [ -z $FOLDER_DUMP ]
+        then
+                verbose 1 "\nListing des parametres :\n\tContainer : $CONTAINER_DATABASE_NAME\n\tDatabase : $DATABASE\n\tNom : $DUMP_NAME_FILE\n\tDestination : /tmp\n\tKeep : $KEEP"
+                verbose 0 "\nRequete SQL : docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c \'exec mysqldump -u root -pMYSQL_ROOT_PASSWORD $DATABASE\' > /tmp/$DUMP_NAME_FILE"
+        else
+                verbose 1 "\nListing des parametres :\n\tContainer : $CONTAINER_DATABASE_NAME\n\tDatabase : $DATABASE\n\tNom : $DUMP_NAME_FILE\n\tDestination : $FOLDER_DUMP\n\tKeep : $KEEP"
+                verbose 0 "\nRequete SQL : docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c \'exec mysqldump -u root -pMYSQL_ROOT_PASSWORD $DATABASE\' > $FOLDER_DUMP$DUMP_NAME_FILE"
+        fi
+else
+        if [ -z $FOLDER_DUMP ]
+        then
+                verbose 1 "\nListing des parametres :\n\tContainer : $CONTAINER_DATABASE_NAME\n\tDatabase : $DATABASE\n\tNom : $DUMP_NAME_FILE\n\tDestination : $REMOTE_SERVER\n\tPort SSH : $PORTSSH\n\tKeep : $KEEP"
+                verbose 0 "\nRequete SQL : docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c \'exec mysqldump -u root -pMYSQL_ROOT_PASSWORD $DATABASE\' > /tmp/$DUMP_NAME_FILE"
+        else
+                verbose 1 "\nListing des parametres :\n\tContainer : $CONTAINER_DATABASE_NAME\n\tDatabase : $DATABASE\n\tNom : $DUMP_NAME_FILE\n\tDossier de backup : $FOLDER_DUMP\n\tDestination : $REMOTE_SERVER\n\tPort SSH : $PORTSSH\n\tKeep : $KEEP"
+                verbose 0 "\nRequete SQL : docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c \'exec mysqldump -u root -pMYSQL_ROOT_PASSWORD $DATABASE\' > $FOLDER_DUMP$DUMP_NAME_FILE"
+        fi
+
+fi
+
+#DUMP DATABASE
+if [ -z $REMOTE_SERVER ]
+then
+  #If not REMOTE SERVER and not not DUMP folder => DUMP Folder = /tmp
+  if [ -z $FOLDER_DUMP ]
+  then
+    /usr/bin/docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c 'exec mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" $DATABASE' > /tmp/$DUMP_NAME_FILE
+  else
+    /usr/bin/docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c 'exec mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" $DATABASE' > $FOLDER_DUMP$DUMP_NAME_FILE
+  fi
+else
+  if [ -z $FOLDER_DUMP ]
+  then
+    /usr/bin/docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c 'exec mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" $DATABASE' > /tmp/$DUMP_NAME_FILE
+  else
+    /usr/bin/docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c 'exec mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" $DATABASE' > $FOLDER_DUMP$DUMP_NAME_FILE
+fi
+
+if [ $? != 0 ]
+then
+  verbose 1 "Dump Database \t\t\t$ROUGE[KO]$NORMAL"
+else
+        verbose 1 "Dump Database \t\t\t$VERT[OK]$NORMAL"
+fi
+
