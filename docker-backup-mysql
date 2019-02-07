@@ -104,11 +104,11 @@ do
 done
 
 #Set DUMP Database Name
-if [ -z $NAME ]
+if [ -z $DUMP_NAME_FILE ]
 then
   DUMP_NAME_FILE=${DATABASE}-${DATE}.sql
 else
-  DUMP_NAME_FILE=${NAME}-${DATE}.sql
+  DUMP_NAME_FILE=${DUMP_NAME_FILE}-${DATE}.sql
 fi
 
 #Display parameter and SQL request
@@ -136,6 +136,8 @@ else
 fi
 
 #DUMP DATABASE
+verbose 1 "Dump Database..."
+
 if [ -z $REMOTE_SERVER ]
 then
   #If not REMOTE SERVER and not not DUMP folder => DUMP Folder = /tmp
@@ -151,12 +153,37 @@ else
     /usr/bin/docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c 'exec mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" $DATABASE' > /tmp/$DUMP_NAME_FILE
   else
     /usr/bin/docker exec -e DATABASE=$DATABASE $CONTAINER_DATABASE_NAME sh -c 'exec mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" $DATABASE' > $FOLDER_DUMP$DUMP_NAME_FILE
+  fi
 fi
 
 if [ $? != 0 ]
 then
   verbose 1 "Dump Database \t\t\t$ROUGE[KO]$NORMAL"
 else
-        verbose 1 "Dump Database \t\t\t$VERT[OK]$NORMAL"
+  verbose 1 "Dump Database \t\t\t$VERT[OK]$NORMAL"
 fi
 
+
+#Dump copy on remote server
+#If not set remote server, don't launch SCP copy
+if [ -z $REMOTE_SERVER ]
+then
+	verbose 0 "$JAUNE"
+	verbose 0 "Not Remote Copy$NORMAL"
+else
+	if [ -z $FOLDER_DUMP ]
+  then
+    verbose 1 "Copy command : scp -P $PORTSSH /tmp/$DUMP_NAME_FILE $REMOTE_SERVER"
+    scp -P $PORTSSH /tmp/$DUMP_NAME_FILE $REMOTE_SERVER > /dev/null 2>&1
+  else
+    verbose 1 "Copy command : scp -P $PORTSSH $FOLDER_DUMP$DUMP_NAME_FILE $REMOTE_SERVER"
+    scp -P $PORTSSH $FOLDER_DUMP$DUMP_NAME_FILE $REMOTE_SERVER > /dev/null 2>&1
+  fi
+	
+  if [ $? != 0 ]
+	then
+    verbose 1 "Dump Remote Copy \t\t\t$ROUGE[KO]$NORMAL"
+	else
+    verbose 1 "Dump Remote Copy \t\t\t$VERT[OK]$NORMAL"
+	fi
+fi
