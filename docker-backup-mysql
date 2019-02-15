@@ -182,8 +182,37 @@ else
 	
   if [ $? != 0 ]
 	then
-    verbose 1 "Dump Remote Copy \t\t\t$ROUGE[KO]$NORMAL"
+    verbose 1 "Dump Remote Copy \t\t$ROUGE[KO]$NORMAL"
 	else
-    verbose 1 "Dump Remote Copy \t\t\t$VERT[OK]$NORMAL"
+    verbose 1 "Dump Remote Copy \t\t$VERT[OK]$NORMAL"
 	fi
+fi
+
+#Delete local DUMP
+#If not set remote server, don't delete local DUMP
+if [ -z $REMOTE_SERVER ]
+then
+  verbose 0 "$JAUNE"
+  verbose 0 "Don't delete Local DUMP$NORMAL"
+else
+  #If KEEP option, don't delete local DUMP
+  if $KEEP;
+  then
+    verbose 0 "$JAUNE"
+    verbose 0 "KEEP Option : No deletion local DUMP$NORMAL"
+  else
+    if [ -z $FOLDER_DUMP ]
+    then
+      rm -f /tmp/$DUMP_NAME_FILE
+    else
+      rm -f $FOLDER_DUMP$DUMP_NAME_FILE
+    fi
+
+    if [ $? != 0 ]
+    then
+      verbose 1 "Deletion local Dump \t\t$ROUGE[KO]$NORMAL"
+    else
+      verbose 1 "Deletion local Dump \t\t$VERT[OK]$NORMAL"
+    fi
+  fi
 fi
